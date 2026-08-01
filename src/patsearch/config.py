@@ -19,8 +19,34 @@ def _load_dotenv(path: Path) -> None:
 
 _load_dotenv(ROOT / ".env")
 
-RAW_DIR = ROOT / "patent_data" / "data" / "patent_data_small"
 DATA_DIR = ROOT / "data"
+
+
+def _resolve_raw_dir() -> Path:
+    """Locate the corpus.
+
+    PATSEARCH_DATA_DIR wins if set. Otherwise the known layouts are tried in order —
+    zip archives have shipped with and without a nested data/ directory, and
+    scripts/setup.sh extracts into data/. A directory only counts if it actually
+    contains patents_*.json, so a stale empty folder cannot shadow the real one.
+    """
+    override = os.environ.get("PATSEARCH_DATA_DIR")
+    if override:
+        return Path(override).expanduser().resolve()
+
+    candidates = (
+        ROOT / "data" / "patent_data_small",
+        ROOT / "data" / "data" / "patent_data_small",
+        ROOT / "patent_data" / "data" / "patent_data_small",
+        ROOT / "patent_data" / "patent_data_small",
+    )
+    for c in candidates:
+        if c.is_dir() and any(c.glob("patents_*.json")):
+            return c
+    return candidates[0]  # canonical location; the loader reports a clear error
+
+
+RAW_DIR = _resolve_raw_dir()
 PROCESSED_DIR = DATA_DIR / "processed"
 REPORTS_DIR = ROOT / "reports"
 
