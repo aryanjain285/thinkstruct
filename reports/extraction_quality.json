@@ -1,0 +1,12 @@
+{
+  "claims_total": 10473,
+  "independent": 3251,
+  "dependent": 7055,
+  "number_inferred": 3104,
+  "multi_fragment": 68,
+  "patents_with_out_of_order_numbering": 1,
+  "status_canceled": 167,
+  "status_original_complete": 7197,
+  "status_preamble_stripped": 3104,
+  "status_rejoined_continuation": 5
+}

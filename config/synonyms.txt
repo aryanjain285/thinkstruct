@@ -1,0 +1,35 @@
+# Spelling and terminology equivalences applied at index time.
+#
+# Solr synonym format: comma-separated equivalent terms, one group per line.
+# Blank lines and lines starting with '#' are ignored.
+#
+# Edit this file and rebuild the index to change search behaviour — no code change.
+# Scope it to your corpus: these entries are US/GB pairs common in mechanical and
+# materials patents. A pharmaceutical or software corpus wants a different list.
+
+# --- US / GB spelling ---
+tyre, tire
+tyres, tires
+fibre, fiber
+fibres, fibers
+aluminium, aluminum
+centre, center
+centred, centered
+mould, mold
+moulded, molded
+moulding, molding
+colour, color
+coloured, colored
+behaviour, behavior
+sulphur, sulfur
+gauge, gage
+
+# --- -ise / -ize verb forms ---
+vulcanise, vulcanize
+vulcanised, vulcanized
+vulcanisation, vulcanization
+polymerise, polymerize
+polymerised, polymerized
+polymerisation, polymerization
+stabilise, stabilize
+stabilised, stabilized

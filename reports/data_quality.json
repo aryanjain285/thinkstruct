@@ -1,0 +1,23 @@
+{
+  "patents_loaded": 640,
+  "source_files": 64,
+  "issues_total": 119,
+  "issues_by_severity": {
+    "warning": 119
+  },
+  "issues_by_field": {
+    "detailed_description": 119
+  },
+  "patents_without_description": 119,
+  "classification_subclasses": {
+    "B60C": 318,
+    "B60B": 298,
+    "B60D": 20,
+    "B60F": 1,
+    "B60G": 1,
+    "B60R": 1,
+    "B60J": 1
+  },
+  "claims_entries_total": 10578,
+  "description_paragraphs_total": 42040
+}

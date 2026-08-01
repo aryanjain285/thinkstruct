@@ -1,0 +1,41 @@
+# ---- secrets: never commit ----
+.env
+.env.*
+!.env.example
+
+# ---- Thinkstruct-supplied material (not ours to redistribute publicly) ----
+thinkstruct-coding-task.pdf
+patent_data/
+patent_data_small.zip
+*.zip
+
+# ---- python ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---- node ----
+node_modules/
+ui/dist/
+*.log
+
+# ---- generated artefacts ----
+data/processed/
+data/ingestion.db
+*.db
+_scratch/
+models/
+
+# Evaluation sets and reports ARE committed — they are the evidence behind the
+# numbers in the README, and they make the results reproducible.
+!data/evaluation/
+!reports/
+
+# ---- os ----
+.DS_Store
+Thumbs.db
