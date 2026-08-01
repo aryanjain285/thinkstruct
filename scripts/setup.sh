@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Full A-Z bootstrap for a Linux machine with Docker.
+# Full A-Z bootstrap for macOS or Linux with Docker.
 #
 #   ./scripts/setup.sh                       # everything: deps, index, API, UI
 #   ./scripts/setup.sh --embedder openai-small   # hosted embeddings (needs OPENAI_API_KEY)
@@ -53,7 +53,28 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ------------------------------------------------------------------- helpers
-port_free() { ! (command -v ss >/dev/null && ss -ltn 2>/dev/null | grep -q ":$1 ") ; }
+port_free() {
+  local port=$1
+  if command -v lsof >/dev/null 2>&1; then
+    ! lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | grep -q .
+  elif command -v ss >/dev/null 2>&1; then
+    ! ss -ltn 2>/dev/null | grep -q ":$port "
+  elif command -v netstat >/dev/null 2>&1; then
+    ! netstat -an 2>/dev/null | grep -E "[.:]$port[[:space:]].*LISTEN" >/dev/null
+  else
+    warn "cannot verify whether port $port is free; continuing"
+    return 0
+  fi
+}
+
+inplace_sed() {
+  local expression=$1 file=$2
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    sed -i '' "$expression" "$file"
+  else
+    sed -i "$expression" "$file"
+  fi
+}
 
 stop_pidfile() {
   local f="$RUN_DIR/$1.pid"
@@ -119,34 +140,80 @@ if [[ "$DO_UI" -eq 1 ]]; then
   fi
 fi
 
-# OpenSearch refuses to start below this on Linux.
-MMC=$(sysctl -n vm.max_map_count 2>/dev/null || echo 0)
-if [[ "$MMC" -lt 262144 ]]; then
-  warn "vm.max_map_count=$MMC, OpenSearch needs >= 262144"
-  if sudo -n true 2>/dev/null; then
-    sudo sysctl -w vm.max_map_count=262144 >/dev/null && ok "raised vm.max_map_count"
-  else
-    die "run this first:  sudo sysctl -w vm.max_map_count=262144
-   (persist it:  echo 'vm.max_map_count=262144' | sudo tee -a /etc/sysctl.conf)"
+# OpenSearch runs in Linux. On macOS, inspect Docker Desktop's Linux VM.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  MMC=$(docker run --rm --privileged --pid=host alpine     sysctl -n vm.max_map_count 2>/dev/null || echo 0)
+
+  if [[ "$MMC" -lt 262144 ]]; then
+    warn "Docker VM vm.max_map_count=$MMC, OpenSearch needs >= 262144"
+    die "run this first:
+docker run --rm --privileged --pid=host alpine \
+  sysctl -w vm.max_map_count=262144"
   fi
+
+  ok "Docker VM vm.max_map_count=$MMC"
 else
-  ok "vm.max_map_count=$MMC"
+  MMC=$(sysctl -n vm.max_map_count 2>/dev/null || echo 0)
+
+  if [[ "$MMC" -lt 262144 ]]; then
+    warn "vm.max_map_count=$MMC, OpenSearch needs >= 262144"
+    if sudo -n true 2>/dev/null; then
+      sudo sysctl -w vm.max_map_count=262144 >/dev/null
+      ok "raised vm.max_map_count"
+    else
+      die "run this first:
+sudo sysctl -w vm.max_map_count=262144
+
+To persist it:
+echo 'vm.max_map_count=262144' | sudo tee -a /etc/sysctl.conf"
+    fi
+  else
+    ok "vm.max_map_count=$MMC"
+  fi
 fi
 
 # --------------------------------------------------------------------- data
 step "Checking the corpus"
-DATA_DIR="$ROOT/patent_data/data/patent_data_small"
+
+# Default corpus location:
+#   <repository>/data/patent_data_small
+#
+# Override when needed:
+#   PATSEARCH_DATA_DIR=/absolute/path/to/patent_data_small ./scripts/setup.sh
+DATA_DIR="${PATSEARCH_DATA_DIR:-$ROOT/data/patent_data_small}"
+
 if [[ ! -d "$DATA_DIR" ]]; then
   ZIP=$(find "$ROOT" -maxdepth 1 -iname '*patent_data*.zip' | head -1 || true)
-  [[ -n "$ZIP" ]] || die "corpus missing. Place the patent data zip in $ROOT and re-run."
-  command -v unzip >/dev/null || die "unzip not found. sudo apt-get install -y unzip"
-  mkdir -p "$ROOT/patent_data"
-  unzip -q -o "$ZIP" -d "$ROOT/patent_data"
-  ok "extracted $(basename "$ZIP")"
+
+  if [[ -z "$ZIP" ]]; then
+    die "corpus missing.
+
+Expected directory:
+  $DATA_DIR
+
+Your corpus should contain files named patents_*.json.
+
+You can also provide a custom location:
+  PATSEARCH_DATA_DIR=/absolute/path/to/patent_data_small ./scripts/setup.sh"
+  fi
+
+  command -v unzip >/dev/null || die "unzip not found. Install it and re-run."
+
+  mkdir -p "$ROOT/data"
+  unzip -q -o "$ZIP" -d "$ROOT/data"
+  ok "extracted $(basename "$ZIP") into $ROOT/data"
+
+  # Some archives contain an extra data/ directory.
+  if [[ ! -d "$DATA_DIR" && -d "$ROOT/data/data/patent_data_small" ]]; then
+    DATA_DIR="$ROOT/data/data/patent_data_small"
+  fi
 fi
-NFILES=$(find "$DATA_DIR" -name 'patents_*.json' | wc -l)
-[[ "$NFILES" -gt 0 ]] || die "no patents_*.json under $DATA_DIR"
-ok "$NFILES weekly JSON files"
+
+NFILES=$(find "$DATA_DIR" -type f -name 'patents_*.json' | wc -l | tr -d ' ')
+[[ "$NFILES" -gt 0 ]] || die "no patents_*.json files found under:
+  $DATA_DIR"
+
+ok "$NFILES weekly JSON files in $DATA_DIR"
 
 # ------------------------------------------------------------------- python
 step "Python environment"
@@ -169,7 +236,7 @@ ok "dependencies installed ($("$VPY" -m pip list 2>/dev/null | wc -l) packages)"
 step "Configuration"
 [[ -f .env ]] || { cp .env.example .env; ok "created .env from template"; }
 if grep -q '^PATSEARCH_EMBEDDER=' .env; then
-  sed -i "s|^PATSEARCH_EMBEDDER=.*|PATSEARCH_EMBEDDER=$EMBEDDER|" .env
+  inplace_sed "s|^PATSEARCH_EMBEDDER=.*|PATSEARCH_EMBEDDER=$EMBEDDER|" .env
 else
   echo "PATSEARCH_EMBEDDER=$EMBEDDER" >> .env
 fi
@@ -181,7 +248,7 @@ if [[ "$EMBEDDER" == openai-* ]]; then
   ok "hosted embeddings configured"
 else
   step "Downloading the embedding model (local inference, no API key)"
-  "$VPY" - <<'PYEOF'
+  SETUP_EMBEDDER="$EMBEDDER" "$VPY" - <<'PYEOF'
 import os, sys
 sys.path.insert(0, "src")
 from patsearch.embeddings.service import create_embedder
@@ -211,9 +278,11 @@ if ! wait_http "http://localhost:$OS_PORT/_cluster/health" 180 "cluster health";
   $COMPOSE_CMD logs --tail 30 opensearch 2>&1 | sed 's/^/      /'
   die "OpenSearch did not become healthy.
    Most common causes:
-     - vm.max_map_count too low   -> sudo sysctl -w vm.max_map_count=262144
-     - not enough RAM (needs ~2GB) -> free -h
-     - port $OS_PORT already in use  -> ss -ltnp | grep $OS_PORT"
+     - vm.max_map_count too low:
+         Linux: sudo sysctl -w vm.max_map_count=262144
+         macOS: docker run --rm --privileged --pid=host alpine sysctl -w vm.max_map_count=262144
+     - not enough Docker memory (allocate at least ~4 GB)
+     - port $OS_PORT already in use"
 fi
 ok "cluster $(curl -s "http://localhost:$OS_PORT/_cluster/health" | grep -o '"status":"[a-z]*"' | cut -d: -f2)"
 ok "OpenSearch on http://localhost:$OS_PORT"
@@ -239,6 +308,9 @@ if [[ "$DO_INDEX" -eq 1 ]]; then
 fi
 
 # ---------------------------------------------------------------- services
+API_URL="${API_URL:-http://localhost:$API_PORT}"
+UI_URL="${UI_URL:-}"
+
 if [[ "$USE_DOCKER" -eq 1 ]]; then
   step "Starting API and UI in Docker"
   $COMPOSE_CMD up -d --build api ui

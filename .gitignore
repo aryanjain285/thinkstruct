@@ -39,3 +39,5 @@ models/
 # ---- os ----
 .DS_Store
 Thumbs.db
+data/patent_data_small/*
+.run/*
