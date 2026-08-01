@@ -271,52 +271,33 @@ def slide_problem(prs):
          size=32, bold=True, color=INK, font=SERIF, space_after=0, first=True, line=1.06)
     y += Inches(1.48)
 
-    tf = textbox(s, L, y, Inches(11.0), Inches(0.6))
-    rich(tf, [("Before filing, litigating or committing R&D budget someone must answer: ",
-               False, INK2, SANS),
-              ("has anyone already claimed this?", True, INK, SANS),
+    tf = textbox(s, L, y, Inches(10.4), Inches(0.9))
+    rich(tf, [("Prior art rarely uses your vocabulary.", True, INK, SANS),
               ("  A ", False, INK2, SANS),
-              ("carbon fibre spoke", True, INK, SANS),
+              ("carbon fibre spoke", True, DRAFT, SANS),
               (" may be claimed elsewhere as an ", False, INK2, SANS),
-              ("elongate composite tension member", True, INK, SANS),
-              (" — keyword search misses it, and reading 10M patents is not an option.",
-               False, INK2, SANS)],
-         size=13.5, first=True, space_after=0, line=1.35)
-    y += Inches(0.82)
+              ("elongate composite tension member", True, DRAFT, SANS),
+              (".", False, INK2, SANS)],
+         size=17, first=True, space_after=0, line=1.4)
+    y += Inches(1.05)
 
-    cw = (CW - Inches(0.3)) / 2
-    callout(s, L, y, cw, Inches(1.05), "Missing prior art",
-            "A patent issues that is invalid. It surfaces in litigation, where "
-            "invalidation runs $1–3M and the R&D is already sunk.")
-    callout(s, L + cw + Inches(0.3), y, cw, Inches(1.05), "Returning noise",
-            "Attorneys read hundreds of irrelevant patents at $400–700/hour. 200 vague "
-            "hits has saved nobody anything.")
-    y += Inches(1.22)
+    cw = (CW - Inches(0.35)) / 2
+    callout(s, L, y, cw, Inches(1.0), "Miss the prior art",
+            "An invalid patent issues. It surfaces in litigation at $1–3M.")
+    callout(s, L + cw + Inches(0.35), y, cw, Inches(1.0), "Return noise instead",
+            "Attorneys read irrelevant patents at $400–700 an hour.")
+    y += Inches(1.5)
 
-    hrule(s, L, y, CW); y += Inches(0.22)
-    tf = textbox(s, L, y, CW, Inches(0.26))
-    para(tf, "DESIGN DECISION · RETRIEVAL OPERATES ON CLAIMS, NEVER WHOLE PATENTS",
-         size=10, bold=True, color=DRAFT, font=MONO, space_after=0, first=True)
-    y += Inches(0.4)
+    tf = textbox(s, L, y, CW, Inches(0.9))
+    para(tf, "Retrieval operates on claims, never whole patents.",
+         size=17, bold=True, color=INK, font=SANS, space_after=8, first=True)
+    para(tf, "Claims are the legal unit — infringement is decided claim by claim. "
+             "Every result names the record that matched.",
+         size=13.5, color=INK2, font=SANS, space_after=0, line=1.35)
 
-    sw = (CW - Inches(0.6)) / 3
-    stat(s, L, y, sw, "16.5", "average claims per patent — one blob matches every query "
-                              "in the field")
-    stat(s, L + sw + Inches(0.3), y, sw, "Legal",
-         "infringement is decided claim by claim; “patent X is relevant” is not actionable")
-    stat(s, L + 2 * (sw + Inches(0.3)), y, sw, "Evidence",
-         "every result names the matching record, so output is checked not trusted")
-    y += Inches(1.0)
-
-    callout(s, L, y, CW, Inches(0.66), None,
-            "Scope boundary — the system surfaces and ranks technically similar claims. It "
-            "does not output novelty, validity or infringement conclusions; those are legal "
-            "determinations, and the reranker prompt says so explicitly.", kind="draft")
-
-    tf = textbox(s, L, Inches(7.02), CW, Inches(0.26))
-    para(tf, "640 patents · 18,743 indexed records · 329 tests · "
-             "github.com/aryanjain285/thinkstruct",
-         size=10, color=MUTED, font=MONO, space_after=0, first=True)
+    tf = textbox(s, L, Inches(6.75), CW, Inches(0.26))
+    para(tf, "640 patents · 18,743 indexed records · 329 tests",
+         size=11, color=MUTED, font=MONO, space_after=0, first=True)
 
     notes(s, """
 HOW DO YOU HANDLE MISSING FIELDS?
@@ -341,74 +322,87 @@ narrows to 50 candidates first; the LLM only ever sees those.
 
 
 def slide_architecture(prs):
-    s, y = new_slide(prs, "02", "Architecture",
-                     "Two retrievers, one filter set, fused and reranked")
+    s, y = new_slide(prs, "02", "How a search works",
+                     "Two ways of searching, merged into one answer")
 
-    # ---- pipeline row
-    nodes = [("Raw JSON", "64 files"), ("Validate", "graded"), ("Normalise", "NFKC"),
-             ("Reconstruct", "claims"), ("Records", "18,743")]
-    nw, gap = Inches(1.72), Inches(0.42)
+    # One left-to-right flow. The query splits into two searches and merges back.
+    BH = Inches(0.72)          # box height
+    mid = y + Inches(0.62)     # vertical centre of the flow
+    by = mid - BH / 2
+
+    def connect(x0, x1, yy):
+        arrow(s, x0, yy - Inches(0.07), x1 - x0)
+
     x = M
-    for i, (t, sub) in enumerate(nodes):
-        accent = SIGNAL if t == "Reconstruct" else None
-        label_box(s, x, y, nw, Inches(0.62), t, sub, accent=accent)
-        if i < len(nodes) - 1:
-            arrow(s, x + nw + Inches(0.08), y + Inches(0.24), gap - Inches(0.16))
-        x += nw + gap
-    ix = x
-    label_box(s, ix, y, Inches(1.45), Inches(0.62), "OpenSearch", "BM25 + kNN",
+    label_box(s, x, by, Inches(1.4), BH, "Your query",
+              "plain English", fill=PAPER)
+    connect(x + Inches(1.46), x + Inches(1.78), mid)
+
+    x = M + Inches(1.84)
+    label_box(s, x, by, Inches(1.95), BH, "Narrow it down",
+              "wheels only, etc.", accent=DRAFT)
+
+    # split
+    split_x = x + Inches(1.95)
+    fork_x = split_x + Inches(0.46)
+    top_y = mid - Inches(0.62)
+    bot_y = mid + Inches(0.62)
+    vline = box(s, split_x + Inches(0.2), top_y, Pt(1.5), bot_y - top_y,
+                fill=DRAFT, line=None); vline.shadow.inherit = False
+    hstub = box(s, split_x, mid - Pt(0.75), Inches(0.22), Pt(1.5),
+                fill=DRAFT, line=None); hstub.shadow.inherit = False
+    for yy in (top_y, bot_y):
+        stub = box(s, split_x + Inches(0.2), yy - Pt(0.75), Inches(0.06), Pt(1.5),
+                   fill=DRAFT, line=None); stub.shadow.inherit = False
+        arrow(s, split_x + Inches(0.24), yy - Inches(0.07), Inches(0.2))
+
+    FW = Inches(2.3)
+    label_box(s, fork_x, top_y - Inches(0.28), FW, Inches(0.56),
+              "Keyword search", "exact wording", fill=WHITE)
+    label_box(s, fork_x, bot_y - Inches(0.28), FW, Inches(0.56),
+              "Meaning search", "different wording", fill=WHITE)
+
+    # join
+    join_x = fork_x + FW
+    vline2 = box(s, join_x + Inches(0.24), top_y, Pt(1.5), bot_y - top_y,
+                 fill=DRAFT, line=None); vline2.shadow.inherit = False
+    for yy in (top_y, bot_y):
+        stub = box(s, join_x, yy - Pt(0.75), Inches(0.24), Pt(1.5),
+                   fill=DRAFT, line=None); stub.shadow.inherit = False
+    connect(join_x + Inches(0.24), join_x + Inches(0.6), mid)
+
+    x = join_x + Inches(0.66)
+    label_box(s, x, by, Inches(1.45), BH, "Merge", "both lists",
               fill=DRAFT_SOFT, line=DRAFT)
-    y += Inches(0.92)
+    connect(x + Inches(1.51), x + Inches(1.83), mid)
 
-    # ---- query row
-    down_arrow(s, M + Inches(0.75), y - Inches(0.24), Inches(0.2))
-    qy = y + Inches(0.1)
-    label_box(s, M, qy, Inches(1.6), Inches(0.55), "Query", None)
-    arrow(s, M + Inches(1.68), qy + Inches(0.2), Inches(0.34))
-    label_box(s, M + Inches(2.1), qy, Inches(1.85), Inches(0.55), "Pre-filters",
-              "CPC · title · abstract", accent=DRAFT)
+    x += Inches(1.89)
+    label_box(s, x, by, Inches(1.4), BH, "Re-rank", "top 50 only", fill=WHITE)
+    connect(x + Inches(1.46), x + Inches(1.78), mid)
 
-    bx = M + Inches(4.3)
-    label_box(s, bx, qy - Inches(0.34), Inches(1.5), Inches(0.5), "BM25", "lexical")
-    label_box(s, bx, qy + Inches(0.34), Inches(1.5), Inches(0.5), "k-NN", "semantic")
-    arrow(s, M + Inches(3.98), qy + Inches(0.2), Inches(0.28))
+    x += Inches(1.84)
+    label_box(s, x, by, Inches(1.35), BH, "Results", "by patent",
+              fill=GOOD_SOFT, line=GOOD)
 
-    fx = bx + Inches(1.75)
-    arrow(s, fx - Inches(0.22), qy + Inches(0.2), Inches(0.2))
-    label_box(s, fx, qy, Inches(1.4), Inches(0.55), "RRF fusion", "scale-free",
-              fill=DRAFT_SOFT, line=DRAFT)
+    y = bot_y + Inches(0.6)
 
-    rx = fx + Inches(1.62)
-    arrow(s, rx - Inches(0.2), qy + Inches(0.2), Inches(0.18))
-    label_box(s, rx, qy, Inches(1.65), Inches(0.55), "Rerank", "LTR / CE / LLM")
+    cw = (CONTENT_W - Inches(0.35)) / 2
+    callout(s, M, y, cw, Inches(1.0), "Why search twice",
+            "Keyword search finds the exact words. Meaning search finds the same idea "
+            "worded differently. Patents need both.", kind="draft")
+    callout(s, M + cw + Inches(0.35), y, cw, Inches(1.0), "Why narrow first, not last",
+            "Filtering before the search is what keeps it fast at scale — and still "
+            "returns a full set of candidates.", kind="draft")
+    y += Inches(1.45)
 
-    gx = rx + Inches(1.87)
-    arrow(s, gx - Inches(0.2), qy + Inches(0.2), Inches(0.18))
-    label_box(s, gx, qy, Inches(1.55), Inches(0.55), "Group", "by patent")
-    y = qy + Inches(1.0)
-
-    cw = (CONTENT_W - Inches(0.3)) / 2
-    callout(s, M, y, cw, Inches(0.95), "Why both retrievers",
-            "BM25 nails exact component names, materials and legal phrasing. Vectors "
-            "catch the same mechanism in different words.", kind="draft")
-    callout(s, M + cw + Inches(0.3), y, cw, Inches(0.95), "Why RRF, not score addition",
-            "BM25 scores sit in the tens, cosine in 0–1. RRF is scale-free and needs no "
-            "tuned weight.", kind="draft")
-    y += Inches(1.15)
-
-    callout(s, M, y, CONTENT_W, Inches(0.68), None,
-            "Filters are pre-filters applied inside k-NN graph traversal. Post-filtering "
-            "would return far fewer than k under a selective constraint. Verified: with "
-            "B60B applied, dense and hybrid still return a full 50/50.", kind="good")
-    y += Inches(0.84)
-
+    hrule(s, M, y, CONTENT_W); y += Inches(0.28)
     tf = textbox(s, M, y, CONTENT_W, Inches(0.9))
-    para(tf, "EVERY MODEL IS SWAPPABLE BY FLAG — NO CODE CHANGE", size=10, bold=True,
-         color=DRAFT, font=MONO, space_after=6, first=True)
-    for t in ["Embeddings — all-MiniLM / bge / e5 / gte local, or OpenAI hosted",
-              "Reranker — trained LTR, HuggingFace cross-encoder, LLM, or off",
-              "Vocabulary — config/synonyms.txt, edit and reindex"]:
-        para(tf, "— " + t, size=11.5, color=INK2, font=SANS, space_after=3, line=1.15)
+    para(tf, "One engine, OpenSearch, does keyword search, vector search and filtering "
+             "in a single query.", size=15, bold=True, color=INK, font=SANS,
+         space_after=8, first=True)
+    para(tf, "The embedding model and the re-ranker are each chosen by a command-line "
+             "flag — swapping either changes no code.",
+         size=13, color=INK2, font=SANS, space_after=0, line=1.3)
 
     notes(s, """
 WHY OPENSEARCH? WHAT WERE THE ALTERNATIVES?
@@ -454,47 +448,33 @@ def slide_reconstruction(prs):
     stat(s, M + 2 * (sw + Inches(0.3)), y, sw, "79.7%", "have no “1.” entry at all")
     y += Inches(0.95)
 
-    tf = textbox(s, M, y, Inches(11.2), Inches(0.4))
-    rich(tf, [("Preambles are ", False, INK2, SANS),
+    tf = textbox(s, M, y, Inches(11.6), Inches(0.4))
+    rich(tf, [("Claim preambles are ", False, INK2, SANS),
               ("stripped, not split", True, INK, SANS),
-              (".  Patent 20240051333 (“SPOKE”) opens mid-sentence — the "
-               "“1 . A spoke comprising:” is simply gone.", False, INK2, SANS)],
-         size=12.5, first=True, space_after=0)
-    y += Inches(0.5)
+              (" — the text is gone, not moved.", False, INK2, SANS)],
+         size=15, first=True, space_after=0)
+    y += Inches(0.55)
 
-    callout(s, M, y, CONTENT_W, Inches(0.78), "Why the obvious rule fails",
-            "“Append every numberless fragment to the previous claim” breaks twice: "
-            "nothing precedes an index-0 fragment, so claim 1 is dropped; and mid-list "
-            "fragments are often new independent claims, glued onto their predecessor.")
-    y += Inches(0.94)
-
-    mono_block(s, M, y, CONTENT_W, Inches(0.86), [
-        ("20240051338, entry 1:", MUTED),
+    mono_block(s, M, y, CONTENT_W, Inches(0.92), [
+        ("The obvious fix: append each numberless fragment to the previous claim.", MUTED),
         ("  prev: '1 - 5 . (canceled)'", INK2),
-        ("  FRAG: 'a tread portion extending in a tire circumferential direction...'", INK2),
-        ("                                                    ^^ this is claim 6", SIGNAL),
+        ("  FRAG: 'a tread portion extending in a tire circumferential...'", INK2),
+        ("                                          ^^ a new claim 6, not a continuation",
+         SIGNAL),
     ])
-    y += Inches(1.02)
+    y += Inches(1.12)
 
-    cw = (CONTENT_W - Inches(0.3)) / 2
-    tf = textbox(s, M, y, cw, Inches(1.3))
-    para(tf, "The rule used instead", size=13, bold=True, color=INK, font=SANS,
-         space_after=5, first=True)
-    rich(tf, [("Segment first, number second. ", True, INK, SANS),
-              ("A fragment starts a new claim if it is first, or if the previous entry "
-               "closed on a full stop. Numbers resolve afterwards by anchoring to the "
-               "next explicit number. Every uncertain decision is recorded on the claim, "
-               "so the UI shows provenance instead of pretending the data was clean.",
-               False, INK2, SANS)], size=11.5, space_after=0)
+    cw = (CONTENT_W - Inches(0.35)) / 2
+    tf = textbox(s, M, y, cw, Inches(1.0))
+    para(tf, "Segment first, number second", size=15, bold=True, color=INK, font=SANS,
+         space_after=6, first=True)
+    para(tf, "A fragment starts a new claim if it is first, or if the previous entry "
+             "ended on a full stop. Numbers resolve afterwards.",
+         size=12.5, color=INK2, font=SANS, space_after=0, line=1.3)
 
-    callout(s, M + cw + Inches(0.3), y, cw, Inches(0.82), None,
-            "Invariant, checked over the whole corpus: all 10,578 source entries are "
-            "consumed exactly once — zero dropped, zero duplicated.", kind="good")
-    tf = textbox(s, M + cw + Inches(0.42), y + Inches(0.95), cw - Inches(0.24), Inches(0.6))
-    para(tf, "Tests also cover formats absent from this dataset — “1)” numbering, "
-             "em-dash cancellation ranges, 120-claim patents — so the parser is not "
-             "fitted to one sample.",
-         size=11, color=INK2, font=SANS, space_after=0, first=True, line=1.2)
+    callout(s, M + cw + Inches(0.35), y, cw, Inches(1.0), "How we know it is right",
+            "All 10,578 source entries are consumed exactly once. Zero dropped, zero "
+            "duplicated.", kind="good")
 
     notes(s, """
 WHY IS THIS THE MOST IMPORTANT SLIDE?
@@ -542,18 +522,12 @@ def slide_results(prs):
           col_w=[0.4, 4.2, 1.2, 4.2], highlight=2, row_h=Inches(0.3))
     y += Inches(1.32)
 
-    tf = textbox(s, M, y, CONTENT_W, Inches(0.72))
-    rich(tf, [("Attempt 1 ", True, INK, SANS),
-              ("used each patent's own abstract — same drafter, same vocabulary, so 55% "
-               "of query words appear verbatim in the target and the benchmark rewarded "
-               "near-duplicate detection. ", False, INK2, SANS),
-              ("Attempt 3 ", True, INK, SANS),
-              ("found the real flaw: qrels marked only the query's own patent relevant, "
-               "so when hybrid correctly returned five different flexible-spoke patents, "
-               "four scored as errors. Pooling surfaced 1,272 cross-patent relevant "
-               "records the earlier sets counted as mistakes.", False, INK2, SANS)],
-         size=12, first=True, space_after=0)
-    y += Inches(0.86)
+    tf = textbox(s, M, y, CONTENT_W, Inches(0.5))
+    rich(tf, [("The flaw: ", True, INK, SANS),
+              ("the answer key marked only the query's own patent as relevant — so five "
+               "correct flexible-spoke patents scored as four errors.", False, INK2, SANS)],
+         size=14, first=True, space_after=0, line=1.3)
+    y += Inches(0.62)
 
     table(s, M, y, CONTENT_W,
           ["System", "recall@10", "recall@50", "nDCG@10", "P@5", "P50 latency"],
@@ -636,42 +610,32 @@ def slide_scale(prs):
     s, y = new_slide(prs, "05", "Part 2 · Implementation at scale",
                      "From 640 patents to 10 million")
 
-    # ---- pipeline diagram
-    label_box(s, M, y + Inches(0.28), Inches(1.5), Inches(0.6), "USPTO", "weekly bulk")
-    arrow(s, M + Inches(1.58), y + Inches(0.52), Inches(0.3))
-    label_box(s, M + Inches(1.96), y + Inches(0.28), Inches(1.4), Inches(0.6), "S3",
-              "immutable", fill=PAPER)
-    arrow(s, M + Inches(3.44), y + Inches(0.52), Inches(0.3))
-    label_box(s, M + Inches(3.82), y + Inches(0.28), Inches(1.5), Inches(0.6), "Queue",
-              "1 msg/patent", accent=DRAFT)
+    # Single left-to-right line, with one drop for the job tracker.
+    BW, BH, GAP = Inches(2.16), Inches(0.72), Inches(0.34)
+    row_y = y + Inches(0.05)
+    mid = row_y + BH / 2
 
-    wx = M + Inches(5.62)
-    workers = ["Parser", "Reconstruct", "Embed (GPU)", "Index"]
-    for i, w in enumerate(workers):
-        label_box(s, wx + i * Inches(1.42), y, Inches(1.3), Inches(0.44), w, None,
-                  title_size=10)
-    arrow(s, wx - Inches(0.26), y + Inches(0.2), Inches(0.22))
+    stages = [
+        ("New filings", "every week", PAPER, RULE),
+        ("Keep the raw files", "never re-fetch", PAPER, RULE),
+        ("One job per patent", "a work queue", DRAFT_SOFT, DRAFT),
+        ("Workers process it", "parse, embed, index", WHITE, RULE),
+        ("Search index", "ready to query", GOOD_SOFT, GOOD),
+    ]
+    x = M
+    for i, (t, sub, fill, edge) in enumerate(stages):
+        label_box(s, x, row_y, BW, BH, t, sub, fill=fill, line=edge, title_size=12)
+        if i < len(stages) - 1:
+            arrow(s, x + BW + Inches(0.04), mid - Inches(0.07), GAP - Inches(0.08))
+        x += BW + GAP
 
-    # Bus joining the four workers, with drops to the two stores they write to.
-    bus_y = y + Inches(0.52)
-    bus = box(s, wx + Inches(0.6), bus_y, Inches(4.6), Pt(1.25), fill=DRAFT, line=None)
-    bus.shadow.inherit = False
-    for i in range(4):
-        tick = box(s, wx + Inches(0.65) + i * Inches(1.42), y + Inches(0.44),
-                   Pt(1.25), Inches(0.08), fill=DRAFT, line=None)
-        tick.shadow.inherit = False
-    down_arrow(s, wx + Inches(1.55), bus_y, Inches(0.2), color=SIGNAL)
-    down_arrow(s, wx + Inches(4.1), bus_y, Inches(0.2), color=DRAFT)
-
-    label_box(s, wx + Inches(0.62), y + Inches(0.76), Inches(2.0), Inches(0.44),
-              "Postgres", "ingestion_jobs", fill=SIGNAL_SOFT, line=SIGNAL, title_size=10)
-    label_box(s, wx + Inches(3.05), y + Inches(0.76), Inches(2.15), Inches(0.44),
-              "OpenSearch", "sharded", fill=DRAFT_SOFT, line=DRAFT, title_size=10)
-
-    tf = textbox(s, wx + Inches(0.62), y + Inches(1.24), Inches(4.6), Inches(0.2))
-    para(tf, "status writes                          indexed records",
-         size=8, color=MUTED, font=MONO, space_after=0, first=True)
-    y += Inches(1.56)
+    # The workers box is the 4th; drop a line from it to the job tracker.
+    wx = M + 3 * (BW + GAP)
+    down_arrow(s, wx + BW / 2, row_y + BH, Inches(0.26), color=SIGNAL)
+    label_box(s, wx - Inches(0.1), row_y + BH + Inches(0.32), BW + Inches(0.2),
+              Inches(0.5), "Every patent's progress is tracked", "so nothing is lost",
+              fill=SIGNAL_SOFT, line=SIGNAL, title_size=11, sub_size=9)
+    y = row_y + BH + Inches(1.02)
 
     sw = (CONTENT_W - Inches(0.6)) / 3
     stat(s, M, y, sw, "293M", "searchable records at 10M patents (29.3 per patent, measured)")
@@ -681,30 +645,24 @@ def slide_scale(prs):
          "per month steady state · ~$700 optimised")
     y += Inches(1.0)
 
-    cw = (CONTENT_W - Inches(0.3)) / 2
-    tf = textbox(s, M, y, cw, Inches(1.3))
-    para(tf, "Vector storage dominates — attack it first", size=12.5, bold=True,
-         color=INK, font=SANS, space_after=5, first=True)
-    for t in ["293M × 1536 dims × 4 bytes = 1.8 TB, and HNSW wants it resident",
-              "Truncate to 512 dims (Matryoshka) -> 600 GB",
-              "Quantise to int8 -> 150 GB",
-              "Skip description passages — 38% of records, least queried"]:
-        para(tf, "— " + t, size=11, color=INK2, font=SANS, space_after=3, line=1.15)
+    cw = (CONTENT_W - Inches(0.35)) / 2
+    tf = textbox(s, M, y, cw, Inches(1.4))
+    para(tf, "Vector storage is the binding constraint", size=14, bold=True,
+         color=INK, font=SANS, space_after=7, first=True)
+    for t in ["1.8 TB of vectors, and the index wants it in memory",
+              "Halve the dimensions -> 600 GB",
+              "Compress to int8 -> 150 GB",
+              "Skip description passages -> a further 38% off"]:
+        para(tf, "— " + t, size=12.5, color=INK2, font=SANS, space_after=4, line=1.2)
 
-    tf = textbox(s, M + cw + Inches(0.3), y, cw, Inches(1.3))
-    para(tf, "Proof of concept, on all 640 patents", size=12.5, bold=True,
-         color=INK, font=SANS, space_after=5, first=True)
-    for t in ["Idempotent — re-running enqueues 0, skips 640",
-              "Versioned — bumping parser version re-queues all 640",
-              "Crash-safe — expired leases return to PENDING",
-              "Retry-tracked — failures record the error and count"]:
-        para(tf, "— " + t, size=11, color=INK2, font=SANS, space_after=3, line=1.15)
-    y += Inches(1.42)
-
-    callout(s, M, y, CONTENT_W, Inches(0.6), None,
-            "The filter finding inverts at scale: filters cost BM25 +69% here because at "
-            "18.7K records there is nothing to save. At 10M patents B60B selects ~0.3% of "
-            "the corpus, and filtering becomes the dominant optimisation.", kind="draft")
+    tf = textbox(s, M + cw + Inches(0.35), y, cw, Inches(1.4))
+    para(tf, "Ingestion, proven on all 640 patents", size=14, bold=True,
+         color=INK, font=SANS, space_after=7, first=True)
+    for t in ["Re-running ingests nothing",
+              "Version bump re-queues everything",
+              "A dead worker's jobs come back",
+              "Failures record the error and retry"]:
+        para(tf, "— " + t, size=12.5, color=INK2, font=SANS, space_after=4, line=1.2)
 
     notes(s, """
 HOW DID YOU GET THESE COST NUMBERS?

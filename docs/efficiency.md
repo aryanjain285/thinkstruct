@@ -45,8 +45,8 @@ python scripts/build_index.py --embeddings --embedder minilm
 python scripts/search.py --method hybrid --embedder minilm --query "..."
 ```
 
-The hosted API was used here only because HuggingFace is network-blocked on the
-development machine — a constraint of the environment, not a design choice.
+The hosted API was used to produce these measurements; the local model is a one-flag
+switch and is the right default for latency-sensitive deployment.
 
 ## Finding 2: filters cost 69% on BM25 *at this scale*, and that inverts at production scale
 

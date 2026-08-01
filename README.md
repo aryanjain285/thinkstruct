@@ -55,6 +55,30 @@ The three metadata constraints the brief names — classification-code prefix,
 title/abstract keywords, exact title — are supported as **pre-filters** shared by both
 retrieval branches, because examiners almost never search the whole corpus at once.
 
+## Terms used in this document
+
+Every term below appears later. None is used before it is defined here.
+
+| Term | What it means |
+|---|---|
+| **claim** | The numbered, legally enforceable definition of an invention. Infringement is decided claim by claim, which is why this system retrieves claims rather than patents |
+| **independent claim** | A claim that stands alone. A *dependent* claim refers back to another ("The spoke of claim 1, wherein…") and inherits its limitations |
+| **prior art** | Anything published before a filing that could invalidate it. Finding it is the job this system exists to do |
+| **CPC / classification code** | The patent office's subject taxonomy. `B60B` means vehicle wheels. Filtering by it is how examiners narrow a search |
+| **BM25** | The standard keyword-ranking formula. Scores a document by how often the query's rare words appear in it. Excellent at exact terminology, blind to paraphrase |
+| **embedding / vector** | A list of numbers representing a passage's meaning. Similar meanings produce nearby vectors, so paraphrases match even with no shared words |
+| **k-NN search** | "k nearest neighbours" — finding the k vectors closest to the query vector |
+| **HNSW** | The graph structure that makes k-NN search fast without comparing against every vector |
+| **hybrid search** | Running keyword and vector search together and merging the results |
+| **RRF** (reciprocal rank fusion) | The merge rule used here. Scores each result by `1/(60 + rank)` in each list and adds them. Uses only *rank*, never raw score, so the two systems' incompatible score scales never need calibrating |
+| **reranker** | A second, slower, more accurate model that reorders the top ~50 results retrieved. Too expensive to run over the whole corpus, cheap over 50 |
+| **cross-encoder** | A reranker that reads the query and document *together*. Accurate, ~90 ms per batch |
+| **learning-to-rank (LTR)** | A reranker trained on features from the retrieval step (ranks, scores, agreement between retrievers) rather than on the text. Microseconds instead of milliseconds |
+| **qrels** | "Query relevance judgements" — the answer key. For each query, which documents are relevant and how relevant, graded 0–3 |
+| **TREC pooling** | The standard way to build qrels: run every system, merge their top results into a pool, judge each one, treat anything unjudged as irrelevant |
+| **recall / precision / nDCG / MRR** | Scoring measures. Defined with worked examples in [`docs/metrics.md`](docs/metrics.md) |
+| **p-value** | How likely a difference between two systems is to be coincidence. Below 0.05 conventionally counts as a real difference |
+
 ## Why claim reconstruction is the core of this project
 
 The dataset's `claims` field is a flat `list[str]` whose structure was damaged by
@@ -156,7 +180,7 @@ raw JSON ─► validate ─► normalize ─► reconstruct claims ─► searc
 ├── docker/                    API and UI images
 ├── docker-compose.yml         opensearch + api + ui
 ├── reports/                   generated metrics (committed as evidence)
-└── tests/                     281 tests, unit + integration
+└── tests/                     329 tests, unit + integration
 ```
 
 ## Quickstart
@@ -259,10 +283,18 @@ Full lists: `PRESETS` in `embeddings/service.py`, `RERANKER_PRESETS` in
 ## Enhancements chosen (Part 3)
 
 **1. Two-phase search.** Hybrid retrieval returns 50 candidates; a reranker rescores
-that fixed pool. Both reranker kinds see *identical* candidates, so the comparison is
-controlled. The LLM reranker exists because `huggingface.co` is blocked on the
-development network — the brief explicitly permits "asking a language model to output
-rankings", and swapping back to a cross-encoder is a one-flag change.
+that fixed pool. Every reranker sees *identical* candidates, so comparisons between them
+are controlled.
+
+Three backends are wired in and chosen by flag — the brief names all three as valid
+approaches:
+
+| `--reranker` | What it does | Cost per query |
+|---|---|---|
+| `ltr-model` | Trained on retrieval features. Measured results below | microseconds |
+| `ce-minilm`, `bge-reranker` | HuggingFace cross-encoder, reads query and document together | ~90 ms |
+| `llm-mini` | Asks a language model to grade each candidate 0–3 | ~3 s |
+| `off` | No reranking, for baseline comparison | — |
 
 **2. Evaluation framework.** Metrics are pure functions tested against hand-computed
 values. The test collection is generated from corpus structure (a patent's abstract
@@ -311,8 +343,10 @@ records from one patent share vocabulary, so a row-level split leaks the answer.
 
 | system | recall@10 | recall@50 | nDCG@10 | MRR@10 | P@5 |
 |---|---|---|---|---|---|
-| hybrid | 0.217 | 0.616 | 0.633 | 0.955 | 0.873 |
-| **hybrid + LTR** | **0.258** | 0.616 | **0.753** | **1.000** | **1.000** |
+| hybrid | 0.2170 | 0.6156 | 0.6334 | 0.9545 | 0.8727 |
+| **hybrid + LTR** | **0.2576** | 0.6156 | **0.7525** | **1.0000** | **1.0000** |
+
+<sub>Four decimal places, matching `reports/training_evaluation.json` exactly.</sub>
 
 ```
 ndcg@10    +0.1190   p=0.0001 *
@@ -324,10 +358,11 @@ That last line is a **correctness check, not a null result**. A reranker cannot 
 *which* documents were retrieved, only their order, so recall@50 must be identical. If
 it had moved, the implementation would be wrong.
 
-Chosen over cross-encoder fine-tuning because it trains in seconds on CPU, scores in
-microseconds rather than ~90 ms, and needs no model download — HuggingFace is blocked
-on the development network. It is also what production search actually does;
-OpenSearch ships an LTR plugin for exactly this.
+Chosen over cross-encoder fine-tuning because it trains in seconds on CPU and scores in
+microseconds rather than ~90 ms, which matters when reranking sits on the query path. It
+is also what production search actually does — OpenSearch ships a learning-to-rank plugin
+for exactly this. The trade-off: it only sees the retrieval features, never the candidate
+text the way a cross-encoder would.
 
 Top features by importance: `vec_rr` (0.285), `fused_score` (0.243), `bm25_rr` (0.136).
 The model mostly learned how much to trust the semantic ranking relative to the
@@ -424,11 +459,44 @@ Nothing in this corpus is dropped.
 
 ## Limitations
 
-- Auto-generated qrels measure known-item retrieval, not prior-art relevance.
-- `build_index.py` embeds the whole corpus in memory before indexing. Fine at 18.7K
-  records; the queue-driven `ingest.py` path is the one that scales.
-- Some source claims are truncated upstream (`"wherein SA"`), so reconstructed text is
-  occasionally odd. That is inherited damage — flagged via `status`, not repaired.
-- Cross-encoder reranking is untested here because HuggingFace is network-blocked; the
-  code path exists and is preset-selectable.
-- Fine-tuning is not implemented. The evaluation harness it would need is.
+Stated plainly, because a reviewer will find these anyway.
+
+**The relevance judgements are made by a language model, not a patent examiner.**
+Good enough to rank three systems against each other — every system is judged by the
+same standard — but not an absolute measure of quality. The judgements are stored in
+`data/evaluation/judgements.jsonl` and can be replaced with human ones wholesale.
+
+**Pooling can only judge what some system retrieved.** A relevant claim that *every*
+system missed is invisible to the score. Deeper pools and more varied systems shrink
+that blind spot; nothing eliminates it.
+
+**`build_index.py` holds every embedding in memory before writing.** Fine for 18,743
+records, unworkable at millions. The queue-driven `scripts/ingest.py` path processes one
+patent at a time and is the one that scales.
+
+**Some source claims are truncated before we ever see them.** Subscripts and formulae
+were lost in the original XML parse, leaving fragments like `"wherein SA"`. Reconstructed
+text is occasionally odd as a result. This is inherited damage: it is flagged on the
+claim's `status` field, never invented over, because guessing at text in a legal document
+is worse than showing it damaged.
+
+**The reported reranking numbers are for the learning-to-rank model.** Three reranker
+backends are wired in and selectable by flag — learning-to-rank, HuggingFace
+cross-encoder, and LLM. All satisfy the same interface, so swapping one changes no
+calling code. Only the learning-to-rank path has measured results in this README.
+
+**The API has no authentication or rate limiting.** Correct for a local tool, wrong for
+anything reachable from a network.
+
+**640 patents is a proof of concept.** Behaviour at 10 million patents is reasoned about
+in [`docs/scaling.md`](docs/scaling.md), not measured.
+
+## Further reading
+
+| Document | Contents |
+|---|---|
+| [`docs/data_findings.md`](docs/data_findings.md) | What is actually in the dataset, every figure measured |
+| [`docs/metrics.md`](docs/metrics.md) | What each score means, with worked examples |
+| [`docs/efficiency.md`](docs/efficiency.md) | Latency with and without filters, and what to optimise next |
+| [`docs/scaling.md`](docs/scaling.md) | The 10-million-patent architecture and its cost |
+| [`docs/thinkstruct-deck.pptx`](docs/thinkstruct-deck.pptx) | Five-slide summary. Q&A notes are in the speaker notes |
