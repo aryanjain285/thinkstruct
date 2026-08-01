@@ -303,6 +303,45 @@ recall@50  hybrid 0.6161 vs bm25 0.4052   delta=+0.2109   p=0.0001 *
 Every query surfaces relevant prior art in the top 10. Recall@10 is capped at 0.276
 here because queries now average 40.8 relevant records.
 
+### Trained reranker (Part 3: evaluation **and training**)
+
+A learning-to-rank model trained on the pooled judgements, evaluated on **22 held-out
+queries covering 142 patents the model never saw**. Split is by patent, not by row —
+records from one patent share vocabulary, so a row-level split leaks the answer.
+
+| system | recall@10 | recall@50 | nDCG@10 | MRR@10 | P@5 |
+|---|---|---|---|---|---|
+| hybrid | 0.217 | 0.616 | 0.633 | 0.955 | 0.873 |
+| **hybrid + LTR** | **0.258** | 0.616 | **0.753** | **1.000** | **1.000** |
+
+```
+ndcg@10    +0.1190   p=0.0001 *
+recall@10  +0.0405   p=0.0001 *
+recall@50  +0.0000   p=1.0000     <- correct: reranking reorders the same 50 candidates
+```
+
+That last line is a **correctness check, not a null result**. A reranker cannot change
+*which* documents were retrieved, only their order, so recall@50 must be identical. If
+it had moved, the implementation would be wrong.
+
+Chosen over cross-encoder fine-tuning because it trains in seconds on CPU, scores in
+microseconds rather than ~90 ms, and needs no model download — HuggingFace is blocked
+on the development network. It is also what production search actually does;
+OpenSearch ships an LTR plugin for exactly this.
+
+Top features by importance: `vec_rr` (0.285), `fused_score` (0.243), `bm25_rr` (0.136).
+The model mostly learned how much to trust the semantic ranking relative to the
+lexical one — a modest but genuine finding.
+
+> **Caveats:** 22 held-out queries is small. Qrels are dense (40.8 relevant per query
+> against 50 candidates), which makes P@5 and MRR easy to saturate — hence the 1.000s.
+> nDCG@10 is the metric to trust here, because it is sensitive to ordering rather than
+> mere presence.
+
+```bash
+python scripts/train_reranker.py        # generate data, train, evaluate held-out
+```
+
 ### Why the evaluation had to be rebuilt twice
 
 The first two attempts both produced *wrong conclusions*, and finding out why was most

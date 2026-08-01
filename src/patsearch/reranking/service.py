@@ -195,10 +195,16 @@ def create_reranker(spec: str = "llm-mini", **kwargs) -> Reranker:
 
 def rerank(reranker: Reranker, query: str, hits: list[Hit], *, top_k: int | None = None) -> list[Hit]:
     """Rescore hits. The candidate set is never changed, so comparisons between
-    rerankers stay controlled."""
+    rerankers stay controlled.
+
+    Text-based rerankers (cross-encoder, LLM) implement `score`. Feature-based ones
+    (learning-to-rank) need the retrieval signals carried on each Hit, so they expose
+    `score_hits` instead and are dispatched to it here.
+    """
     if not hits:
         return []
-    scores = reranker.score(query, [h.text for h in hits])
+    scorer = getattr(reranker, "score_hits", None)
+    scores = scorer(query, hits) if callable(scorer) else reranker.score(query, [h.text for h in hits])
     for h, s in zip(hits, scores, strict=True):
         h.rerank_score = s
         h.score = s

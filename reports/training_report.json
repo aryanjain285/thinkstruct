@@ -1,0 +1,42 @@
+{
+  "model": "GradientBoostingRegressor",
+  "params": {
+    "n_estimators": 300,
+    "max_depth": 4,
+    "learning_rate": 0.05,
+    "seed": 17,
+    "test_fraction": 0.3
+  },
+  "rows": {
+    "train": 2895,
+    "test": 1105
+  },
+  "patents": {
+    "train": 329,
+    "test": 142
+  },
+  "label_distribution": {
+    "0": 1534,
+    "1": 661,
+    "2": 438,
+    "3": 262
+  },
+  "feature_importance": {
+    "vec_rr": 0.2852,
+    "fused_score": 0.2425,
+    "bm25_rr": 0.1359,
+    "text_len_norm": 0.0913,
+    "query_len_norm": 0.0774,
+    "title_overlap": 0.0664,
+    "term_overlap": 0.0638,
+    "claim_number_norm": 0.0265,
+    "is_independent": 0.0025,
+    "bm25_only": 0.0021,
+    "found_by_both": 0.0019,
+    "is_description": 0.0013,
+    "is_summary": 0.001,
+    "vec_only": 0.0008,
+    "is_claim": 0.0007,
+    "is_abstract": 0.0007
+  }
+}
