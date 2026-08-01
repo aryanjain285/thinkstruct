@@ -1,7 +1,6 @@
 import pytest
 
 from patsearch.search.index import (
-    SYNONYMS_PATH,
     build_analysis,
     build_mapping,
     load_synonyms,

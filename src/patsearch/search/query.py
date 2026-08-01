@@ -223,11 +223,11 @@ class Timer:
         self._start: float | None = None
         self._label: str | None = None
 
-    def __call__(self, label: str) -> "Timer":
+    def __call__(self, label: str) -> Timer:
         self._label = label
         return self
 
-    def __enter__(self) -> "Timer":
+    def __enter__(self) -> Timer:
         self._start = time.perf_counter()
         return self
 

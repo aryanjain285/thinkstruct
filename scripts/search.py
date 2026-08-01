@@ -82,7 +82,7 @@ def main() -> int:
     print(f"method  : {outcome.method}")
     if not filters.is_empty():
         print(f"filters : {filters}")
-    print(f"timings : " + "  ".join(f"{k}={v:.0f}ms" for k, v in outcome.timings_ms.items())
+    print("timings : " + "  ".join(f"{k}={v:.0f}ms" for k, v in outcome.timings_ms.items())
           + f"  TOTAL={sum(outcome.timings_ms.values()):.0f}ms")
     print(f"{len(outcome.hits)} records -> {len(outcome.patents)} patents\n")
 

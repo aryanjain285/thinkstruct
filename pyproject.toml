@@ -31,3 +31,35 @@ packages = ["src/patsearch"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = ["integration: requires a live OpenSearch index"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",    # pycodestyle
+    "F",         # pyflakes — unused imports/variables, undefined names
+    "I",         # import sorting
+    "B",         # bugbear — likely bugs, including zip() without strict=
+    "C4",        # comprehension simplifications
+    "SIM",       # simplifications
+    "UP",        # pyupgrade
+    "RET",       # return-path clarity
+]
+ignore = [
+    "E501",      # line length is handled by the formatter, not the linter
+    "SIM108",    # ternaries are not always clearer than if/else
+    "RET504",    # a named return value often documents intent
+    "B008",      # FastAPI Depends()/Query() in defaults is the framework idiom
+    "UP042",     # `str, Enum` is deliberate: it serialises identically on 3.11 and
+                 # 3.12+, whereas StrEnum changes str() semantics
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test doubles legitimately accept arguments they ignore.
+"tests/*" = ["ARG001", "ARG002", "ARG005"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["patsearch"]

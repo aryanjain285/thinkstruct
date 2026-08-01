@@ -80,7 +80,7 @@ class Job:
     last_error: str | None
 
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> "Job":
+    def from_row(cls, row: sqlite3.Row) -> Job:
         return cls(
             patent_id=row["patent_id"],
             source_file=row["source_file"],
@@ -105,7 +105,7 @@ class StatusStore:
     def close(self) -> None:
         self._conn.close()
 
-    def __enter__(self) -> "StatusStore":
+    def __enter__(self) -> StatusStore:
         return self
 
     def __exit__(self, *exc) -> None:

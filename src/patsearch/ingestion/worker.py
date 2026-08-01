@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import traceback
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ from typing import Any
 from opensearchpy import OpenSearch
 
 from patsearch.embeddings.service import EmbeddingService
-from patsearch.ingestion.loader import _to_patent, validate_record
+from patsearch.ingestion.loader import to_patent, validate_record
 from patsearch.ingestion.status_store import JobStatus, StatusStore, content_hash
 from patsearch.models import Patent
 from patsearch.processing.reconstruct import reconstruct_claims
@@ -24,6 +25,10 @@ from patsearch.processing.records import build_records
 from patsearch.search.index import index_records
 
 PARSER_VERSION = "v1"
+
+#: Parsed source files held in memory at once. Weekly files cluster in the queue,
+#: so a handful is enough for a high hit rate without unbounded growth.
+SOURCE_CACHE_SIZE = 4
 
 
 def enqueue_corpus(
@@ -79,16 +84,30 @@ class IngestionWorker:
         self.embedder = embedder
         self.raw_dir = raw_dir
         self.max_retries = max_retries
-        self._source_cache: dict[str, dict[str, Any]] = {}
+        self._source_cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
     def _load_source(self, source_file: str, patent_id: str) -> dict[str, Any] | None:
-        if source_file not in self._source_cache:
+        """Parsed source files are cached, bounded to SOURCE_CACHE_SIZE.
+
+        Jobs are claimed in insertion order so patents from one file arrive together;
+        a small cache gets nearly every hit. An unbounded one would hold the entire
+        corpus in memory for the worker's lifetime.
+        """
+        cached = self._source_cache.get(source_file)
+        if cached is None:
             path = (self.raw_dir or Path()) / source_file
             payload = json.loads(path.read_text(encoding="utf-8"))
-            self._source_cache[source_file] = {
-                str(r["doc_number"]).strip(): r for r in payload if isinstance(r, dict)
+            cached = {
+                str(r["doc_number"]).strip(): r
+                for r in payload
+                if isinstance(r, dict) and r.get("doc_number")
             }
-        return self._source_cache[source_file].get(patent_id)
+            if len(self._source_cache) >= SOURCE_CACHE_SIZE:
+                self._source_cache.pop(next(iter(self._source_cache)))
+            self._source_cache[source_file] = cached
+        else:
+            self._source_cache.move_to_end(source_file)
+        return cached.get(patent_id)
 
     def _process_one(self, job) -> int:
         """Run one patent through every stage. Returns records indexed."""
@@ -100,7 +119,7 @@ class IngestionWorker:
         errors = [i for i in issues if i.severity == "error"]
         if errors:
             raise ValueError(f"validation failed: {[i.issue for i in errors]}")
-        patent: Patent = _to_patent(rec, job.source_file)
+        patent: Patent = to_patent(rec, job.source_file)
 
         self.store.advance(job.patent_id, JobStatus.RECONSTRUCTING)
         claims = reconstruct_claims(patent.patent_id, patent.claims_raw)

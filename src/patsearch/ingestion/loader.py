@@ -74,7 +74,9 @@ def validate_record(rec: dict[str, Any], source: str) -> list[ValidationIssue]:
     return issues
 
 
-def _to_patent(rec: dict[str, Any], source: str) -> Patent:
+def to_patent(rec: dict[str, Any], source: str) -> Patent:
+    """Build a Patent from a validated raw record. Public: the ingestion worker
+    needs it to process a single record without re-reading the whole file."""
     desc = _coerce_str_list(rec.get("detailed_description"))
     return Patent(
         patent_id=str(rec["doc_number"]).strip(),
@@ -137,7 +139,7 @@ def iter_patents(
 
             if skip_errors and any(i.severity == "error" for i in issues):
                 continue
-            yield _to_patent(rec, path.name)
+            yield to_patent(rec, path.name)
 
 
 def load_all(raw_dir: Path) -> tuple[list[Patent], list[ValidationIssue]]:

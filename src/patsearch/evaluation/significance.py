@@ -63,7 +63,7 @@ def paired_bootstrap(
     if n == 0:
         return 1.0
 
-    diffs = [x - y for x, y in zip(a, b)]
+    diffs = [x - y for x, y in zip(a, b, strict=True)]
     observed = sum(diffs) / n
     if observed == 0:
         return 1.0
@@ -90,7 +90,7 @@ def paired_t_test(a: list[float], b: list[float]) -> float:
     if n < 2:
         return 1.0
 
-    diffs = [x - y for x, y in zip(a, b)]
+    diffs = [x - y for x, y in zip(a, b, strict=True)]
     mean = sum(diffs) / n
     var = sum((d - mean) ** 2 for d in diffs) / (n - 1)
     if var == 0:
@@ -133,8 +133,8 @@ def compare_systems(
         ids, sc = scores(r)
         # Align on query_id: a system that failed some queries must not shift the pairing.
         common = [q for q in base_ids if q in set(ids)]
-        bi = {q: s for q, s in zip(base_ids, base_scores)}
-        ri = {q: s for q, s in zip(ids, sc)}
+        bi = dict(zip(base_ids, base_scores, strict=True))
+        ri = dict(zip(ids, sc, strict=True))
         av = [ri[q] for q in common]
         bv = [bi[q] for q in common]
 
@@ -172,7 +172,7 @@ def to_trec_run(
 ) -> str:
     """Export as a TREC run file so results can be scored with trec_eval."""
     lines = []
-    for qid, ranked in zip(query_ids, rankings):
+    for qid, ranked in zip(query_ids, rankings, strict=True):
         for rank, doc_id in enumerate(ranked, start=1):
             lines.append(f"{qid} Q0 {doc_id} {rank} {1.0 / rank:.6f} {run_name}")
     return "\n".join(lines)

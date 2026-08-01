@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 import random
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from patsearch.evaluation.metrics import aggregate, evaluate_one
 
@@ -39,7 +40,7 @@ class EvalSet:
                 fh.write(json.dumps(asdict(q), ensure_ascii=False) + "\n")
 
     @classmethod
-    def load(cls, path: Path) -> "EvalSet":
+    def load(cls, path: Path) -> EvalSet:
         notes: dict[str, Any] = {}
         queries: list[EvalQuery] = []
         with path.open(encoding="utf-8") as fh:

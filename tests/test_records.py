@@ -4,15 +4,15 @@ from patsearch.config import RAW_DIR
 from patsearch.ingestion.loader import load_all
 from patsearch.models import Patent, RecordType
 from patsearch.processing.reconstruct import reconstruct_claims
-from patsearch.processing.records import chunk_paragraphs, build_records
+from patsearch.processing.records import build_records, chunk_paragraphs
 
 
 def _patent(**over):
-    base = dict(
-        patent_id="P1", title="SPOKE", abstract="A spoke includes an axle body.",
-        classification_raw="B60B104FI", claims_raw=[], description_paragraphs=[],
-        bibtex="", source_file="f.json",
-    )
+    base = {
+        "patent_id": "P1", "title": "SPOKE", "abstract": "A spoke includes an axle body.",
+        "classification_raw": "B60B104FI", "claims_raw": [], "description_paragraphs": [],
+        "bibtex": "", "source_file": "f.json",
+    }
     base.update(over)
     return Patent(**base)
 

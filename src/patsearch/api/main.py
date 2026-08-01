@@ -116,7 +116,7 @@ def health() -> HealthResponse:
 @app.get("/capabilities", response_model=CapabilitiesResponse)
 def capabilities() -> CapabilitiesResponse:
     emb = state.get("embedder")
-    methods = ["bm25"] + ([m for m in ("dense", "hybrid")] if emb else [])
+    methods = ["bm25"] + (["dense", "hybrid"] if emb else [])
     if emb and state.get("reranker"):
         methods.append("hybrid_reranked")
     return CapabilitiesResponse(

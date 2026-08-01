@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 
-from patsearch.models import Claim, Patent, RecordType, ReconstructionStatus, SearchRecord
+from patsearch.models import Claim, Patent, ReconstructionStatus, RecordType, SearchRecord
 from patsearch.processing.normalize import normalize_paragraphs
 
 # Passage sizing. Long enough to carry context, short enough to stay precise.

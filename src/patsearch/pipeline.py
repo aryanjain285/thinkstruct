@@ -29,6 +29,9 @@ from patsearch.search.query import (
 
 Method = Literal["bm25", "dense", "hybrid", "hybrid_reranked"]
 
+METHODS: frozenset[str] = frozenset(("bm25", "dense", "hybrid", "hybrid_reranked"))
+VECTOR_METHODS: frozenset[str] = frozenset(("dense", "hybrid", "hybrid_reranked"))
+
 
 def build_corpus(raw_dir: Path = RAW_DIR, *, write_reports: bool = True) -> list[SearchRecord]:
     """Load, validate, reconstruct claims, and emit search records."""
@@ -140,31 +143,37 @@ def search(
     top_k: int = 10,
 ) -> SearchOutcome:
     """Run one search end to end, timing every stage."""
+    # Validate everything before doing any work: otherwise a missing reranker is only
+    # discovered after an embedding call and a full retrieval have been paid for.
+    if method not in METHODS:
+        raise ValueError(f"unknown method {method!r}; expected one of {sorted(METHODS)}")
+    if method in VECTOR_METHODS and embedder is None:
+        raise ValueError(f"method '{method}' requires an embedder")
+    if method == "hybrid_reranked" and reranker is None:
+        raise ValueError("method 'hybrid_reranked' requires a reranker")
+    if candidates < top_k:
+        raise ValueError(f"candidates ({candidates}) must be >= top_k ({top_k})")
+
     filters = filters or Filters()
     timer = Timer()
+    vector: list[float] | None = None
 
-    if method in ("dense", "hybrid", "hybrid_reranked"):
-        if embedder is None:
-            raise ValueError(f"method '{method}' requires an embedder")
+    if method in VECTOR_METHODS:
         with timer("embed_query"):
             vector = embedder.embed_query(query)
 
-    if method == "bm25":
-        with timer("retrieve"):
+    with timer("retrieve"):
+        if method == "bm25":
             hits = bm25_search(client, index, query, filters=filters, top_k=candidates)
-    elif method == "dense":
-        with timer("retrieve"):
+        elif method == "dense":
             hits = dense_search(client, index, vector, filters=filters, top_k=candidates)
-    else:
-        with timer("retrieve"):
+        else:
             hits = hybrid_search(
                 client, index, query, vector, filters=filters,
                 top_k=candidates, candidates=candidates,
             )
 
     if method == "hybrid_reranked":
-        if reranker is None:
-            raise ValueError("method 'hybrid_reranked' requires a reranker")
         with timer("rerank"):
             hits = rerank(reranker, query, hits)
 

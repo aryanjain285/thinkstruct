@@ -1,6 +1,4 @@
-import json
 
-import pytest
 
 from patsearch.evaluation.evaluator import EvalQuery, EvalSet
 from patsearch.evaluation.pooling import (
